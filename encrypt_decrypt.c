@@ -146,10 +146,10 @@ int encrypt_file( char *infile, char *outfile, char * password) {
        return 1;
    }
 
-   // copy the first 32 bytes of kdf key into aes key
+   // copy the first 16 bytes of kdf key into aes key
    memcpy (aes_key, kdf_key, AES256_KEY_SIZE);
 
-   // copy the last 32 bytes of kdf key into hmac key
+   // copy the last 16 bytes of kdf key into hmac key
    memcpy (hmac_key, &(kdf_key[AES256_KEY_SIZE]),HMAC_KEY_SIZE);
 
    // Generate the initialisation vector
@@ -320,10 +320,10 @@ int decrypt_file (char * infile, char *outfile, char * password)
 	     return 1;
      }
 
-     // copy the first 32 bytes of kdf_key into aes_key
+     // copy the first 16 bytes of kdf_key into aes_key
      memcpy(aes_key, kdf_key, AES256_KEY_SIZE);
 
-    //  Copy the last 32 bytes of kdf_key into hmac_key
+    //  Copy the last 16 bytes of kdf_key into hmac_key
     memcpy (hmac_key, &(kdf_key[AES256_KEY_SIZE]),HMAC_KEY_SIZE);
 
     // begin HMAC verification
@@ -353,8 +353,8 @@ int decrypt_file (char * infile, char *outfile, char * password)
     err = gcry_mac_verify(mac, hmac, hmac_len);
     if (err){
        fprintf(stderr,"HMAC verification failed: %s/%s\n", gcry_strsource(err), gcry_strerror(err));
-       //cleanup(handle, mac, ciphertext, packed_data, hmac);
-       //return 1;
+       cleanup(handle, mac, ciphertext, packed_data, hmac);
+       return 1;
     }
     else printf("Valid HMAC found \n");
 

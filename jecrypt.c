@@ -114,8 +114,7 @@ int encrypt_file( char *infile, char *outfile, char * password) {
    gcry_cipher_hd_t handle;
    gcry_mac_hd_t mac;
    gcry_error_t err;
-   // here I really don't understand why they use if
-   // in the original code they comment (fetch text to be encrypted)
+
    if (!(text_len = read_file_into_buf(infile, &text)))
    {
 	   return 1;
@@ -144,11 +143,8 @@ int encrypt_file( char *infile, char *outfile, char * password) {
        return 1;
    }
 
-   // copy the first 32 bytes of kdf key into aes key
+   // copy the first 16 bytes of kdf key into aes key
    memcpy (aes_key, kdf_key, AES256_KEY_SIZE);
-
-   // copy the last 32 bytes of kdf key into hmac key
-   //memcpy (hmac_key, &(kdf_key[AES256_KEY_SIZE]),HMAC_KEY_SIZE);
 
    // Generate the initialisation vector
    gcry_create_nonce(init_vector, AES256_BLOCK_SIZE);
@@ -204,7 +200,6 @@ int encrypt_file( char *infile, char *outfile, char * password) {
 
    if (!write_buf_to_file(outfile,packed_data,packed_data_len))
    {
-       printf("aucune ecriture nada !!!");
        cleanup(handle, mac, ciphertext, packed_data, hmac);
        return 1;
    }
@@ -217,15 +212,34 @@ int decrypt_file (char * infile, char *outfile, char * password)
                    kdf_salt[KDF_SALT_SIZE],
 		   kdf_key[KDF_KEY_SIZE],
 		   aes_key[AES256_KEY_SIZE],
-		   //hmac_key[HMAC_KEY_SIZE],
 		   *hmac = NULL,
 		   *packed_data = NULL,
 		   *ciphertext;
 
-     size_t blocks_required,ciphertext_len /*, packed_data_len,  hmac_len*/;
+     size_t blocks_required,ciphertext_len , packed_data_len /*,  hmac_len*/;
      gcry_cipher_hd_t handle;
-     //gcry_mac_hd_t mac;
      gcry_error_t err;
+
+          // Read in file contents
+          if (!(packed_data_len =  read_file_into_buf(infile, &packed_data))) return 1;
+
+          // Compute necessary lengths
+
+          ciphertext_len =  packed_data_len -KDF_SALT_SIZE - AES256_BLOCK_SIZE ;
+
+          ciphertext = malloc(ciphertext_len);
+          if (ciphertext == NULL)
+          {
+              fprintf(stderr,"Error: ciphertext is too large to fit in memory \n");
+          free(packed_data);
+          return 1;
+          }
+
+
+          //Unpack data
+          memcpy(kdf_salt,packed_data,KDF_SALT_SIZE);
+          memcpy(init_vector,&(packed_data[KDF_SALT_SIZE]), AES256_BLOCK_SIZE);
+          memcpy(ciphertext, &(packed_data[KDF_SALT_SIZE + AES256_BLOCK_SIZE]), ciphertext_len);
 
 
      // key derivation: PBKDF2 using SHA512 w/ 128 byte salt over 10 iterations into a 64 byte key
@@ -244,11 +258,8 @@ int decrypt_file (char * infile, char *outfile, char * password)
 	     return 1;
      }
 
-     // copy the first 32 bytes of kdf_key into aes_key
+     // copy the first 16 bytes of kdf_key into aes_key
      memcpy(aes_key, kdf_key, AES256_KEY_SIZE);
-
-    //  Copy the last 32 bytes of kdf_key into hmac_key
-    //memcpy (hmac_key, &(kdf_key[AES256_KEY_SIZE]),HMAC_KEY_SIZE);
 
     // Begin decription
     if (init_cipher(&handle, aes_key, init_vector))
